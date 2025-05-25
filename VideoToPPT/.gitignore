@@ -1,0 +1,14 @@
+.env 
+
+# Python cache
+*.pyc
+*.pyo
+
+# Chroma DB
+chroma/
+
+# Streamlit
+.streamlit/secrets.toml
+
+__pycache__/
+env/
