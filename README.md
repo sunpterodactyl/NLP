@@ -1,2 +1,2 @@
 # NLP
-My NLP files, including coursework for CS3245
+My own personal exploration using LLMs and NLP Concepts. A more in-depth rundown of each project coming soon
