@@ -1,5 +1,5 @@
 from models.get_transcript import get_vectorstore
-from .command import Command
+from command import Command
 from langchain.chains import RetrievalQA, LLMChain
 from langchain.prompts import PromptTemplate
 from langchain.chat_models import ChatOpenAI

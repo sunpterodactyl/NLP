@@ -15,7 +15,7 @@ class QueryInput(BaseModel):
 class QueryResponse(BaseModel):
     response: str
     session_id: str = Field(default=None)
-    model: ModelName = Field(default = ModelName.GPT4_O_Mini)
+    model: ModelName = Field(default = ModelName.GPT4_O_MINI)
     audience: str
 
 class VideoSummary(BaseModel):
