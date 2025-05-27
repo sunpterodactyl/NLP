@@ -1,7 +1,6 @@
 
 '''
-A class that generates a transcript document from each youtube video
-Creates the document, chunks, and embedding in the chromadb
+Indexes a transcript in chromadb but does not explicitly return a document
 '''
 from dotenv import load_dotenv
 import os

@@ -1,14 +1,18 @@
 from ..models.get_transcript import get_vectorstore
 from ..commands.command import Command
 from langchain_openai.chat_models import ChatOpenAI
-from ..schemas.pydantic_models import QueryResponse, QueryInput, SlideResponse
-from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
+from ..schemas.pydantic_models import QueryResponse, QueryInput, SlideResponse, SlideSchema
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
+from pptx.dml.color import RGBColor
 
 from dotenv import load_dotenv
 import os
+from typing import List
 
 load_dotenv()
 
@@ -16,22 +20,107 @@ SESSION = "5aada9c7-05a4-4f6e-aa74-5ae4bb688178" #remove after testing this out 
 
 class GeneratePPT(Command):
 
+        
     def __init__(self, input:QueryInput):
         self.session_id = input.session_id
         self.model_name = input.model
         self.query = input.query
 
+    def save_presentation(self, presentation):
+        try:
+            os.makedirs('presentations', exist_ok=True)
+            
+            filename = os.path.join('presentations', f'{self.session_id}.pptx')
+            presentation.save(filename)
+            
+            print(f"Presentation saved to: {filename}")
+            return filename
+            
+        except Exception as e:
+            print(f"Error saving presentation: {e}")
+            return None
+        
     def execute(self):
         vectorstore = get_vectorstore(self.session_id)
         qa_response = run_langchain_qa_chain(vectorstore, self.query, self.model_name, self.session_id)
 
         prs = Presentation()
-        #TODO change the API here and use python pptx instead 
-       
+        title = prs.slides.add_slide(prs.slide_layouts[0])
+        title.shapes.title.text = f"Answering: {self.query}"
+        title.placeholders[1].text = "Created using sunpters' streamlit"
 
+        slides: SlideResponse = qa_response.response
+        i = 1
+        for slide_schema in slides.content:
+            new_slide = prs.slides.add_slide(prs.slide_layouts[6]) #blank slide
+            slide_schema: SlideSchema
+            slide_template(new_slide, slide_schema.title, slide_schema.slide_content, slide_schema.bullet_points)
+            print(f"Generating slide {i}")
+            i+=1
+            
+        self.save_presentation(prs)
 
+          
+'''
+Format the slide according to a predetermined layout for the MVP
+'''
+def slide_template(slide, title: str, content: str, bullets: List[str], is_image=False):
+#According to the pydantic model for SlideSchema 
+#Generate image later when I buy more tokens :)
 
-def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id:str):
+    header_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(1)) #Styling help from claude
+    header_frame = header_box.text_frame
+    header_frame.text = title 
+
+    '''
+    Styling for the header
+    '''
+    header = header_frame.paragraphs[0]
+    header.alignment = PP_ALIGN.LEFT
+    header.font.name = 'Arial'
+    header.font.size = Pt(28)
+    header.font.bold = True
+
+    '''
+    Add the bullet points
+    '''
+    bullet_box = slide.shapes.add_textbox(Inches(0.5), Inches(1.8), Inches(4.5), Inches(5))
+    bullet_text = bullet_box.text_frame
+    bullet_text.word_wrap = True
+
+    for i, bullet_point in enumerate(bullets): #claude helped
+        if i == 0:
+            # First paragraph is already created
+            p = bullet_text.paragraphs[0]
+        else:
+            # Add new paragraphs for additional bullet points
+            p = bullet_text.add_paragraph()
+        
+        p.text = bullet_point
+        p.level = 0  # Main bullet level
+        
+        # Format bullet points
+        font = p.font
+        font.name = 'Arial'
+        font.size = Pt(16)
+        font.color.rgb = RGBColor(51, 51, 51)  # Dark gray
+    
+    '''Content Text'''
+    context_box = slide.shapes.add_textbox(Inches(5.2), Inches(1.8), Inches(4.3), Inches(5))
+    context_frame = context_box.text_frame
+    context_frame.word_wrap = True
+
+    #if(len(content) > 220):
+    #    context_frame.text = "The content is long so place an image here instead"
+    #else:
+    context_frame.text = content
+    context_font = context_frame.paragraphs[0].font
+    context_font.name = 'Arial'
+    context_font.size = Pt(14)
+    
+    return slide 
+
+def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id:str) -> QueryResponse:
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     llm = ChatOpenAI(model_name=model_name)
 
@@ -69,18 +158,10 @@ def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id
         | parser
     )
 
-
-
     try: 
         response = qa_chain.invoke(prompt) 
         print(response)
         print(f"Generated {len(response.content)} slides")
-
-        
-        for i, slide in enumerate(response.content, 1):
-           print(f"Slide {i}: {slide.title}")
-           print(f"Bullet points: {slide.bullet_points}")
-           print(f"Needs image: {slide.image}")
 
         return QueryResponse (
             response = response,
