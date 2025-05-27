@@ -13,3 +13,7 @@ chroma/
 __pycache__/
 env/
 ChromaDB/
+app/app.log
+presentations/
+sessions/
+TestPresentation
