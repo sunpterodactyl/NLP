@@ -1,20 +1,17 @@
 from ..models.get_transcript import get_vectorstore
 from ..commands.command import Command
-from langchain.prompts import PromptTemplate
 from langchain_openai.chat_models import ChatOpenAI
-from ..schemas.pydantic_models import QueryResponse, QueryInput
-from langchain_core.output_parsers import StrOutputParser
+from ..schemas.pydantic_models import QueryResponse, QueryInput, SlideResponse
+from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from pptx import Presentation
 
-import requests
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-access_id = os.getenv("MAGICSLIDES_ID")
 SESSION = "5aada9c7-05a4-4f6e-aa74-5ae4bb688178" #remove after testing this out locally
 
 class GeneratePPT(Command):
@@ -30,84 +27,71 @@ class GeneratePPT(Command):
 
         prs = Presentation()
         #TODO change the API here and use python pptx instead 
-        '''
-        try:
-            req = requests.post(
-                'https://api.magicslides.app/public/api/ppt_from_summery',
-                json={
-                    'msSummaryText': qa_response.response,
-                    'email': 'inforsunpteranadon@gmail.com',       
-                    'accessId': access_id,               
-                    'template': 'bullet-point1',
-                    'language': 'en',
-                    'slideCount': 10,
-                    'aiImages': False,
-                    'imageForEachSlide': True,
-                    'googleImage': False,
-                    'googleText': False,
-                    'model': self.model_name,
-                    'presentationFor': qa_response.audience
-                }
-            )
-            req.raise_for_status()
-            ppt_url = req.json().get('url')
-            return ppt_url
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Failed to generate PPT: {e}")
-        '''
+       
 
 
 
-def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id:str) -> QueryResponse:
+def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id:str):
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     llm = ChatOpenAI(model_name=model_name)
 
-    prompt_template = ChatPromptTemplate.from_template(
-    """Generate a deep answer, structure in the form of slides to the question based on the following context:
+    parser = PydanticOutputParser(pydantic_object=SlideResponse)
+    format_instructions = parser.get_format_instructions()
+    print(format_instructions)
 
-    Context: {context}
+    PROMPT_TEMPLATE = ChatPromptTemplate.from_template(
+    """Generate a comprehensive presentation based on the following context and question.
+        Create exactly 10 slides that thoroughly cover the topic.
 
-    Question: {question}
+        Context: {context}
 
-        Answer: Respond with structure such as Slide 1:, Slide 2:, Slide 3: and so on."""
-)
+        Question: {question}
+
+        {format_instructions}
+
+        Generate slides that cover the topic comprehensively. Each slide should have:
+        - A clear, descriptive title
+        - 3-5 bullet points with key information
+        - Detailed slide content that expands on the bullet points
+        - A boolean indicating if an image would enhance understanding
+
+        Response:"""
+    )
+
     qa_chain = (
         {
             "context": retriever,
-            "question": RunnablePassthrough()
+            "question": RunnablePassthrough(),
+            "format_instructions": lambda _: format_instructions
         }
-        |prompt_template
-        |llm
-        |StrOutputParser()
+        | PROMPT_TEMPLATE
+        | llm
+        | parser
     )
 
-    response = qa_chain.invoke(prompt)
-    print(f"Response generated")
 
-    audience_prompt = ChatPromptTemplate.from_template("""
-    Given the following content, determine the most appropriate audience.
-    Respond with a short phrase such as:
-    - high school students
-    - university students
-    - general public
-    - researchers
-    - business professionals
-    - domain experts
 
-    Content:
-    {content}
-    """)
-    
-    audience_chain = audience_prompt | llm |StrOutputParser()
-    audience = audience_chain.invoke({"content": response}).strip()
-    print(f"QueryResponse Object Generating")
+    try: 
+        response = qa_chain.invoke(prompt) 
+        print(response)
+        print(f"Generated {len(response.content)} slides")
 
-    return QueryResponse (
-        response = response,
-        audience = audience,
-        session_id=session_id,
-        model=model_name
+        
+        for i, slide in enumerate(response.content, 1):
+           print(f"Slide {i}: {slide.title}")
+           print(f"Bullet points: {slide.bullet_points}")
+           print(f"Needs image: {slide.image}")
+
+        return QueryResponse (
+            response = response,
+            session_id=session_id,
+            model=model_name
         )
+        
+    except Exception as e:
+        print(f"Raised exception {e}")
+        return None
+
     
 
 q = QueryInput(

@@ -11,20 +11,19 @@ class QueryInput(BaseModel):
     session_id: str = Field(default=None)
     model: ModelName = Field(default=ModelName.GPT4_O_MINI)
 
+class SlideSchema(BaseModel):
+    title: str
+    bullet_points: List[str]
+    slide_content: str
+    image: bool
+
+class SlideResponse(BaseModel):
+    content: List[SlideSchema]
 
 class QueryResponse(BaseModel):
-    response: str
+    response: SlideResponse
     session_id: str = Field(default=None)
     model: ModelName = Field(default = ModelName.GPT4_O_MINI)
-    audience: str
-
-class VideoSummary(BaseModel):
-    id: int
-    url: HttpUrl
-    video_name: str
-    transcript_summary:str
-    session_id: str = Field(default=None)
-    model: ModelName = Field(default=ModelName.GPT4_O_MINI)
 
 class DeleteSummary(BaseModel):
     id: int
