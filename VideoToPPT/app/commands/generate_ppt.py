@@ -16,8 +16,6 @@ from typing import List
 
 load_dotenv()
 
-SESSION = "5aada9c7-05a4-4f6e-aa74-5ae4bb688178" #remove after testing this out locally
-
 class GeneratePPT(Command):
 
         
@@ -173,12 +171,3 @@ def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id
         print(f"Raised exception {e}")
         return None
 
-    
-
-q = QueryInput(
-    query = "How can I use hugging face as an AI engineer and why should I use it",
-    session_id=SESSION
-)
-
-cmd = GeneratePPT(q)
-print(cmd.execute())
