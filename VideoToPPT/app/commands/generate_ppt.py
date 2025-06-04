@@ -1,7 +1,7 @@
-from ..models.get_transcript import get_vectorstore
-from ..commands.command import Command
+from models.get_transcript import get_vectorstore
+from commands.command import Command
 from langchain_openai.chat_models import ChatOpenAI
-from ..schemas.pydantic_models import QueryResponse, QueryInput, SlideResponse, SlideSchema
+from schemas.pydantic_models import QueryResponse, QueryInput, SlideResponse, SlideSchema
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -45,7 +45,7 @@ class GeneratePPT(Command):
         prs = Presentation()
         title = prs.slides.add_slide(prs.slide_layouts[0])
         title.shapes.title.text = f"Answering: {self.query}"
-        title.placeholders[1].text = "Created using sunpters' streamlit"
+        title.placeholders[1].text = "Created using sunpters' website"
 
         slides: SlideResponse = qa_response.response
         i = 1
@@ -86,7 +86,7 @@ def slide_template(slide, title: str, content: str, bullets: List[str], is_image
     bullet_text = bullet_box.text_frame
     bullet_text.word_wrap = True
 
-    for i, bullet_point in enumerate(bullets): #claude helped
+    for i, bullet_point in enumerate(bullets):
         if i == 0:
             # First paragraph is already created
             p = bullet_text.paragraphs[0]
@@ -108,9 +108,6 @@ def slide_template(slide, title: str, content: str, bullets: List[str], is_image
     context_frame = context_box.text_frame
     context_frame.word_wrap = True
 
-    #if(len(content) > 220):
-    #    context_frame.text = "The content is long so place an image here instead"
-    #else:
     context_frame.text = content
     context_font = context_frame.paragraphs[0].font
     context_font.name = 'Arial'
@@ -124,7 +121,6 @@ def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id
 
     parser = PydanticOutputParser(pydantic_object=SlideResponse)
     format_instructions = parser.get_format_instructions()
-    print(format_instructions)
 
     PROMPT_TEMPLATE = ChatPromptTemplate.from_template(
     """Generate a comprehensive presentation based on the following context and question.
@@ -158,9 +154,7 @@ def run_langchain_qa_chain(vectorstore, prompt: str, model_name: str, session_id
 
     try: 
         response = qa_chain.invoke(prompt) 
-        print(response)
-        print(f"Generated {len(response.content)} slides")
-
+        
         return QueryResponse (
             response = response,
             session_id=session_id,

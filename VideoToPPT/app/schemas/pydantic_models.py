@@ -29,5 +29,5 @@ class DeleteSummary(BaseModel):
     id: int
 
 class IndexInput(BaseModel):
-    urls: Union[HttpUrl, List[HttpUrl]]
-    session_id: str
+    urls: Union[str, List[str]]
+    session_id: str = Field(default=None)

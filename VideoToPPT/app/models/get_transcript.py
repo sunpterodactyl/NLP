@@ -4,16 +4,16 @@ Indexes a transcript in chromadb but does not explicitly return a document
 '''
 from dotenv import load_dotenv
 import os
-import langchain 
 import openai 
+import re
 
-from youtube_transcript_api import YouTubeTranscriptApi
-from urllib.parse import urlparse, parse_qs
+from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 from langchain_core.documents import Document
-from typing import List
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from exceptions.TranscriptException import TranscriptNotFoundError, TranscriptDisabledError
 
 
 load_dotenv()
@@ -26,27 +26,40 @@ text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=60,
 '''
 Helper function to parse the url string and extract the video id
 '''
-def get_video_id(url: str) -> str:
-    q = urlparse(url)
-    if q.hostname == "youtu.be":
-        return q.path[1:]
-    elif q.hostname in ("www.youtube.com", "youtube.com"):
-        if q.path == "/watch":
-            return parse_qs(q.query)["v"][0]
-    raise ValueError("Invalid YouTube URL")
+def get_video_id(url):
+    url_patterns = [
+        r'v=([^&]+)',  # Pattern for URLs with 'v=' parameter
+        r'youtu.be/([^?]+)',  # Pattern for shortened URLs
+        r'youtube.com/embed/([^?]+)',# Pattern for embed URLs
+        r'youtube\.com/watch\?v=([0-9A-Za-z_-]{11})',
+    ]
+    for pattern in url_patterns:
+        match = re.search(pattern,url)
+        if match:
+            return match.group(1) #video_id
+    
+    raise ValueError("Incorrect url format. Please copy the format again")
+    
 
-'''
 
-'''
 def generate_document(video_id:str):
-    transcript_data = YouTubeTranscriptApi.get_transcript(video_id=video_id)
-    text = "\n".join([entry["text"] for entry in transcript_data])
 
-    document = Document(
-        page_content=text,
-        metadata={"video_id": video_id}
-    )
-    return text_splitter.split_documents(document)
+    try:
+        transcript_data = YouTubeTranscriptApi.get_transcript(video_id=video_id)
+
+        text = "\n".join([entry["text"] for entry in transcript_data])
+
+        document = Document(
+            page_content=text,
+            metadata={"video_id": video_id}
+        )
+        return text_splitter.split_documents([document])
+    except NoTranscriptFound:
+        raise TranscriptNotFoundError(f"No transcript found in this video")
+    except TranscriptDisabled:
+        raise TranscriptDisabledError(f"Transcripts are not allowed to be used from this video. So sorry")
+    except Exception as e:
+        raise TranscriptNotFoundError(f'Error! {e}')
 
 
 def index_documents_to_chroma(video_id: str, session_id) -> bool:
